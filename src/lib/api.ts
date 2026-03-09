@@ -11,7 +11,9 @@ export interface AnalysisResponse {
     conclusion: ModelResult;
 }
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = (typeof window !== "undefined" && window.location.hostname === "localhost")
+    ? "http://localhost:3001"
+    : "";
 
 export async function analyzeWithAllModels(
     query: string,
@@ -96,7 +98,7 @@ export async function concludeDebate(
         throw new Error(`Server error ${response.status}: ${err}`);
     }
 
-    return response.json() as Promise<DebateResponse>;
+    return response.json() as Promise<ConcludeDebateResponse>;
 }
 
 export interface UserReplyResponse {
