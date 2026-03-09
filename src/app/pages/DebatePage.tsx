@@ -790,25 +790,7 @@ export function DebatePage() {
                             </div>
                         )}
 
-                        {/* Debate Smart Controls Overlay — only while active */}
-                        {(debateStatus === "running" || debateStatus === "paused") && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                style={{
-                                    position: "absolute",
-                                    bottom: "24px",
-                                    left: isConsensusOpen ? "calc((100% - 420px) / 2)" : "50%",
-                                    transform: "translateX(-50%)",
-                                    zIndex: 50,
-                                    boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
-                                    borderRadius: "18px",
-                                    transition: "left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-                                }}
-                            >
-                                <DebateControls />
-                            </motion.div>
-                        )}
+
                         {debateStatus === "awaiting_conclusion" && (
                             <motion.div
                                 initial={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -830,9 +812,9 @@ export function DebatePage() {
                                         background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                                         color: "white",
                                         border: "none",
-                                        padding: "16px 32px",
-                                        borderRadius: "24px",
-                                        fontSize: "16px",
+                                        padding: "10px 20px",
+                                        borderRadius: "14px",
+                                        fontSize: "14px",
                                         fontWeight: 800,
                                         cursor: "pointer",
                                         boxShadow: "0 10px 30px rgba(16, 185, 129, 0.4)",
