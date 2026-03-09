@@ -85,11 +85,11 @@ export function DebateCard({
                 style={{
                     display: "flex",
                     justifyContent: "flex-end",
-                    width: "100%",
                     gap: "12px",
                 }}
+                className="w-full"
             >
-                <div style={{ maxWidth: "75%", display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
+                <div className="max-w-[90%] md:max-w-[75%]" style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ fontSize: "12px", color: "#14b8a6", fontWeight: 600 }}>You</span>
                         <span style={{ fontSize: "11px", color: "var(--muted-foreground)", fontWeight: 400 }}>Human</span>
@@ -126,7 +126,7 @@ export function DebateCard({
                 >
                     You
                 </div>
-            </motion.div>
+            </motion.div >
         );
     }
 
@@ -144,9 +144,8 @@ export function DebateCard({
             style={{
                 display: "flex",
                 gap: "16px",
-                width: "100%",
-                maxWidth: "85%",
             }}
+            className="w-full max-w-[95%] md:max-w-[85%]"
         >
             {/* Avatar */}
             <div

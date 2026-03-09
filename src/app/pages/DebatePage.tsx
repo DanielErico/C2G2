@@ -796,11 +796,11 @@ export function DebatePage() {
                                 initial={{ opacity: 0, y: 20, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 style={{
-                                    position: "absolute",
-                                    bottom: "100px", // Float above the reply bar
-                                    left: "50%",
-                                    transform: "translateX(-50%)",
-                                    zIndex: 50,
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    paddingBottom: "16px",
+                                    paddingTop: "16px",
+                                    width: "100%",
                                 }}
                             >
                                 <button
@@ -814,12 +814,12 @@ export function DebatePage() {
                                         border: "none",
                                         padding: "10px 20px",
                                         borderRadius: "14px",
-                                        fontSize: "14px",
                                         fontWeight: 800,
                                         cursor: "pointer",
                                         boxShadow: "0 10px 30px rgba(16, 185, 129, 0.4)",
                                         transition: "all 0.2s ease",
                                     }}
+                                    className="text-xs md:text-sm"
                                     onMouseEnter={(e) => {
                                         (e.currentTarget as HTMLElement).style.transform = "translateY(-2px) scale(1.02)";
                                         (e.currentTarget as HTMLElement).style.boxShadow = "0 15px 40px rgba(16, 185, 129, 0.5)";
@@ -829,9 +829,9 @@ export function DebatePage() {
                                         (e.currentTarget as HTMLElement).style.boxShadow = "0 10px 30px rgba(16, 185, 129, 0.4)";
                                     }}
                                 >
-                                    <CheckCircle size={20} />
+                                    <CheckCircle size={18} />
                                     <span>Conclude Debate & Generate Verdict</span>
-                                    <Zap size={16} style={{ color: "rgba(255,255,255,0.8)", marginLeft: "4px" }} />
+                                    <Zap size={14} style={{ color: "rgba(255,255,255,0.8)", marginLeft: "4px" }} />
                                 </button>
                             </motion.div>
                         )}
