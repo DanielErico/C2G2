@@ -1014,7 +1014,7 @@ export function DebatePage() {
                                 animate={{ width: "auto", opacity: 1 }}
                                 exit={{ width: 0, opacity: 0 }}
                                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                className="max-md:absolute max-md:right-0 max-md:z-50 w-full sm:w-[420px]"
+                                className="max-md:absolute max-md:right-0 max-md:z-50 w-full md:w-[420px] max-md:pt-20"
                                 style={{
                                     height: "100%",
                                     borderLeft: "1px solid var(--border)",
@@ -1024,7 +1024,7 @@ export function DebatePage() {
                                     flexShrink: 0,
                                 }}
                             >
-                                <div style={{ padding: "24px", width: "420px", boxSizing: "border-box" }}>
+                                <div className="w-full md:w-[420px]" style={{ padding: "24px", boxSizing: "border-box" }}>
                                     <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 700, color: "var(--foreground)" }}>
                                         Final AI Conclusion
                                     </h3>
