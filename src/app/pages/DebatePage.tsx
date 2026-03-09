@@ -9,7 +9,7 @@ import { DebateStatus, DebateMessage } from "../components/debate/debateData";
 import { runDebate, DebateResponse, sendUserReply, concludeDebate } from "../../lib/api";
 import { saveSession } from "../../lib/history";
 import {
-    Search, Bell, Swords, Cpu, ChevronDown, SlidersHorizontal, Settings2, Play, AlertCircle, GitMerge, MessageSquarePlus, Send, UserRound, CornerUpLeft, CheckCircle, Zap
+    Search, Bell, Swords, Cpu, ChevronDown, SlidersHorizontal, Settings2, Play, AlertCircle, GitMerge, MessageSquarePlus, Send, UserRound, CornerUpLeft, CheckCircle, Zap, X
 } from "lucide-react";
 
 type DepthLevel = "Short" | "Standard" | "Deep";
@@ -1025,9 +1025,28 @@ export function DebatePage() {
                                 }}
                             >
                                 <div className="w-full md:w-[420px]" style={{ padding: "24px", boxSizing: "border-box" }}>
-                                    <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: 700, color: "var(--foreground)" }}>
-                                        Final AI Conclusion
-                                    </h3>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                                        <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--foreground)" }}>
+                                            Final AI Conclusion
+                                        </h3>
+                                        <button
+                                            className="md:hidden"
+                                            onClick={() => setIsConsensusOpen(false)}
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                padding: "6px",
+                                                borderRadius: "50%",
+                                                background: "var(--secondary)",
+                                                border: "1px solid var(--border)",
+                                                cursor: "pointer",
+                                                color: "var(--foreground)"
+                                            }}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
                                     <ConsensusPanel
                                         topic={topic}
                                         outcome={consensusData.error ? "No Agreement" : "Consensus"}
