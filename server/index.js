@@ -12,16 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, "../.env") });
 
 const app = express();
-app.use(cors({
-    origin: (origin, callback) => {
-        // Allow any localhost/127.0.0.1 origin regardless of port
-        if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error("Not allowed by CORS"));
-        }
-    }
-}));
+app.use(cors());
 app.use(express.json());
 
 /* ─── ROLE-SPECIFIC SYSTEM PROMPTS ─── */
@@ -512,12 +503,16 @@ app.get("/api/health", (_req, res) => {
     });
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-    const key = (v) => v ? "✅ key found" : `⚠️  missing in .env`;
-    console.log(`\n🚀 C2G2 API server running on http://localhost:${PORT}`);
-    console.log(`   Mode: Gemini 1.5 Flash`);
-    console.log(`   ┌─────────────────────────────────────────────────────────┐`);
-    console.log(`   │  GEMINI_API_KEY  : ${key(process.env.GEMINI_API_KEY)}`);
-    console.log(`   └─────────────────────────────────────────────────────────┘\n`);
-});
+if (process.env.NODE_ENV !== "production") {
+    const PORT = 3001;
+    app.listen(PORT, () => {
+        const key = (v) => v ? "✅ key found" : `⚠️  missing in .env`;
+        console.log(`\n🚀 C2G2 API server running on http://localhost:${PORT}`);
+        console.log(`   Mode: Gemini 1.5 Flash`);
+        console.log(`   ┌─────────────────────────────────────────────────────────┐`);
+        console.log(`   │  GEMINI_API_KEY  : ${key(process.env.GEMINI_API_KEY)}`);
+        console.log(`   └─────────────────────────────────────────────────────────┘\n`);
+    });
+}
+
+export default app;
