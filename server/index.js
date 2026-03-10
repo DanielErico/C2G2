@@ -9,9 +9,12 @@ import { dirname, resolve } from "path";
 import multer from "multer";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const pdf = require("pdf-parse");
-
-// Always resolve .env relative to THIS file, not the CWD
+let pdf;
+try {
+    pdf = require("pdf-parse");
+} catch (e) {
+    console.warn("pdf-parse could not be loaded. PDF extraction will fail.", e);
+}
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, "../.env") });
 
@@ -277,6 +280,9 @@ app.post("/api/extract-text", upload.single("file"), async (req, res) => {
         const mimeType = req.file.mimetype;
 
         if (mimeType === "application/pdf") {
+            if (!pdf) {
+                return res.status(500).json({ error: "PDF parsing library failed to load on this server environment." });
+            }
             const parser = new pdf.PDFParse({ data: req.file.buffer });
             const result = await parser.getText();
             await parser.destroy();
