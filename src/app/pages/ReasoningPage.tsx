@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
@@ -28,7 +28,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
-import { analyzeWithAllModels, type AnalysisResponse } from "../../lib/api";
+import { analyzeWithAllModels, extractTextFromFile, type AnalysisResponse } from "../../lib/api";
 import { buildConsensus } from "../../lib/consensus";
 import { ModeToggle } from "../components/ModeToggle";
 import { saveSession } from "../../lib/history";
@@ -127,6 +127,30 @@ export function ReasoningPage() {
   const [highlightConflicts, setHighlightConflicts] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const [searchVal, setSearchVal] = useState("");
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [documentContext, setDocumentContext] = useState("");
+  const [isExtracting, setIsExtracting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setAttachedFile(file);
+    setIsExtracting(true);
+    setGlobalError(null);
+    try {
+      const { text } = await extractTextFromFile(file);
+      setDocumentContext(text);
+    } catch (err) {
+      setGlobalError("Failed to extract text from document. Please try again.");
+      setAttachedFile(null);
+      setDocumentContext("");
+    } finally {
+      setIsExtracting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!query.trim()) return;
@@ -135,7 +159,7 @@ export function ReasoningPage() {
     setResponses(null);
     setGlobalError(null);
     try {
-      const result = await analyzeWithAllModels(query, role, depth);
+      const result = await analyzeWithAllModels(query, role, depth, documentContext);
       setResponses(result);
       setHasResults(true);
 
@@ -418,6 +442,43 @@ export function ReasoningPage() {
               }
             />
 
+            {/* Attached file badge */}
+            <AnimatePresence>
+              {attachedFile && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                  animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "rgba(96, 165, 250, 0.1)",
+                    border: "1px solid rgba(96, 165, 250, 0.2)",
+                    borderRadius: "6px",
+                    padding: "4px 8px",
+                    color: "#60a5fa",
+                    fontSize: "12px",
+                    fontWeight: 500
+                  }}>
+                    <Highlighter size={12} />
+                    {attachedFile.name}
+                    <button
+                      onClick={() => {
+                        setAttachedFile(null);
+                        setDocumentContext("");
+                      }}
+                      style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 2, marginLeft: 4, color: "#60a5fa" }}
+                    >
+                      <XCircle size={14} />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Controls Row */}
             <div
               style={{
@@ -429,7 +490,16 @@ export function ReasoningPage() {
               }}
             >
               {/* Upload */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: "none" }}
+                accept=".txt,.pdf,.csv,.json"
+                onChange={handleFileUpload}
+              />
               <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isExtracting}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -459,7 +529,7 @@ export function ReasoningPage() {
                 }}
               >
                 <Upload size={12} />
-                Upload Document
+                {isExtracting ? "Extracting…" : "Upload Document"}
               </button>
 
               {/* Role Selector */}

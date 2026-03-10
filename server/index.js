@@ -6,6 +6,10 @@ import OpenAI from "openai"; // Used for standard OpenAI fallback if needed
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
+import multer from "multer";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdf = require("pdf-parse");
 
 // Always resolve .env relative to THIS file, not the CWD
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -260,11 +264,46 @@ async function callConvergencePersona(topic, persona, synthesisText) {
     }
 }
 
+/* ─── DOCUMENT EXTRACTION ENDPOINT ─── */
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+
+app.post("/api/extract-text", upload.single("file"), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        let text = "";
+        const mimeType = req.file.mimetype;
+
+        if (mimeType === "application/pdf") {
+            const parser = new pdf.PDFParse({ data: req.file.buffer });
+            const result = await parser.getText();
+            await parser.destroy();
+            text = result.text;
+        } else if (mimeType === "text/plain" || mimeType === "text/csv" || mimeType === "application/json") {
+            text = req.file.buffer.toString("utf8");
+        } else {
+            return res.status(400).json({ error: "Unsupported file type. Please upload a PDF or text file." });
+        }
+
+        return res.json({ text });
+    } catch (err) {
+        console.error("[C2G2] Extract text error:", err);
+        return res.status(500).json({ error: "Failed to extract text from document." });
+    }
+});
+
 app.post("/api/debate", async (req, res) => {
-    const { topic, depth = "Standard", rounds = 2 } = req.body;
+    const { topic, depth = "Standard", rounds = 2, documentContext } = req.body;
 
     if (!topic || !topic.trim()) {
         return res.status(400).json({ error: "topic is required" });
+    }
+
+    let enrichedTopic = topic;
+    if (documentContext && documentContext.trim()) {
+        enrichedTopic = `${topic}\n\nDocument Context:\n${documentContext}`;
     }
 
     try {
@@ -277,10 +316,10 @@ app.post("/api/debate", async (req, res) => {
 
             // With Gemini 1.5 Flash (1M tokens), we do NOT need to truncate the history or sleep.
             // Call each model sequentially for the current round
-            const chatgpt = await callDebatePersona(topic, "chatgpt", allMessagesFlat);
-            const gemini = await callDebatePersona(topic, "gemini", allMessagesFlat);
-            const claude = await callDebatePersona(topic, "claude", allMessagesFlat);
-            const grok = await callDebatePersona(topic, "grok", allMessagesFlat);
+            const chatgpt = await callDebatePersona(enrichedTopic, "chatgpt", allMessagesFlat);
+            const gemini = await callDebatePersona(enrichedTopic, "gemini", allMessagesFlat);
+            const claude = await callDebatePersona(enrichedTopic, "claude", allMessagesFlat);
+            const grok = await callDebatePersona(enrichedTopic, "grok", allMessagesFlat);
 
             const roundMessages = [
                 { modelId: "chatgpt", text: chatgpt.text, confidenceScore: chatgpt.confidenceScore, round: r },
@@ -452,17 +491,22 @@ app.post("/api/debate/user-reply", async (req, res) => {
 
 /* ─── MAIN ANALYZE ENDPOINT ─── */
 app.post("/api/analyze", async (req, res) => {
-    const { query, role = "Analyst", depth = 72 } = req.body;
+    const { query, role = "Analyst", depth = 72, documentContext } = req.body;
 
     if (!query || !query.trim()) {
         return res.status(400).json({ error: "query is required" });
     }
 
+    let combinedQuery = query;
+    if (documentContext && documentContext.trim()) {
+        combinedQuery = `Topic/Query: ${query}\n\nDocument Context provided by user:\n${documentContext}`;
+    }
+
     // Call models sequentially
-    const chatgptResult = await callChatGPT(query, role, depth).then(v => ({ status: "fulfilled", value: v })).catch(e => ({ status: "rejected", reason: e }));
-    const geminiResult = await callGemini(query, role, depth).then(v => ({ status: "fulfilled", value: v })).catch(e => ({ status: "rejected", reason: e }));
-    const claudeResult = await callClaude(query, role, depth).then(v => ({ status: "fulfilled", value: v })).catch(e => ({ status: "rejected", reason: e }));
-    const grokResult = await callGrok(query, role, depth).then(v => ({ status: "fulfilled", value: v })).catch(e => ({ status: "rejected", reason: e }));
+    const chatgptResult = await callChatGPT(combinedQuery, role, depth).then(v => ({ status: "fulfilled", value: v })).catch(e => ({ status: "rejected", reason: e }));
+    const geminiResult = await callGemini(combinedQuery, role, depth).then(v => ({ status: "fulfilled", value: v })).catch(e => ({ status: "rejected", reason: e }));
+    const claudeResult = await callClaude(combinedQuery, role, depth).then(v => ({ status: "fulfilled", value: v })).catch(e => ({ status: "rejected", reason: e }));
+    const grokResult = await callGrok(combinedQuery, role, depth).then(v => ({ status: "fulfilled", value: v })).catch(e => ({ status: "rejected", reason: e }));
 
     const toResult = (settled, label) => {
         if (settled.status === "fulfilled") return { text: settled.value, error: null };

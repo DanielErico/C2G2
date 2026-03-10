@@ -58,12 +58,13 @@ export const DEBATE_MODELS: Record<Exclude<AIModelId, "user">, DebateParticipant
     },
 };
 
-interface ChatMessageProps {
+export interface ChatMessageProps {
     modelId: AIModelId;
     text: string;
     confidenceScore: number;
     isTyping?: boolean;
     onReply?: () => void;
+    isReaction?: boolean;
 }
 
 export function DebateCard({
@@ -72,6 +73,7 @@ export function DebateCard({
     confidenceScore,
     isTyping = false,
     onReply,
+    isReaction = false,
 }: ChatMessageProps) {
     const [isHovered, setIsHovered] = useState(false);
 
@@ -134,6 +136,41 @@ export function DebateCard({
     const model = DEBATE_MODELS[modelId as Exclude<AIModelId, "user">];
     const Icon = model.icon;
 
+    if (isReaction) {
+        return (
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    width: "100%",
+                    margin: "12px 0",
+                }}
+            >
+                <div
+                    style={{
+                        background: model.badgeBg,
+                        border: `1px solid ${model.borderColor}`,
+                        padding: "6px 16px",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: "var(--foreground)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        boxShadow: `0 2px 10px ${model.glowColor}`,
+                    }}
+                >
+                    <Icon size={14} style={{ color: model.accentColor }} />
+                    <span dangerouslySetInnerHTML={{ __html: text }} />
+                </div>
+            </motion.div>
+        );
+    }
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -174,6 +211,9 @@ export function DebateCard({
                     <span style={{ fontSize: "12px", color: model.accentColor, fontWeight: 500 }}>
                         {model.role}
                     </span>
+                    <span style={{ fontSize: "11px", color: "var(--muted-foreground)", fontWeight: 400, marginLeft: "auto" }}>
+                        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                 </div>
 
                 <div
@@ -187,16 +227,17 @@ export function DebateCard({
                         fontSize: "14.5px",
                         lineHeight: 1.6,
                         boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
+                        wordBreak: "break-word",
                     }}
                 >
                     {isTyping ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", height: "24px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", height: "18px" }}>
                             <motion.div animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }} transition={{ repeat: Infinity, duration: 1.2, delay: 0 }} style={{ width: "6px", height: "6px", borderRadius: "50%", background: model.accentColor }} />
                             <motion.div animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }} transition={{ repeat: Infinity, duration: 1.2, delay: 0.2 }} style={{ width: "6px", height: "6px", borderRadius: "50%", background: model.accentColor }} />
                             <motion.div animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }} transition={{ repeat: Infinity, duration: 1.2, delay: 0.4 }} style={{ width: "6px", height: "6px", borderRadius: "50%", background: model.accentColor }} />
                         </div>
                     ) : (
-                        <TypewriterText text={text} />
+                        <span>{text}</span>
                     )}
 
                     {!isTyping && confidenceScore > 0 && (
@@ -257,39 +298,4 @@ export function DebateCard({
             </div>
         </motion.div>
     );
-}
-
-// Streams text word-by-word with natural human-like pacing
-function TypewriterText({ text }: { text: string }) {
-    const words = text.split(" ");
-    const [displayedCount, setDisplayedCount] = useState(0);
-
-    useEffect(() => {
-        setDisplayedCount(0);
-        let idx = 0;
-
-        function scheduleNext() {
-            if (idx >= words.length) return;
-            const word = words[idx];
-
-            // Base delay per word — shorter for very short words, normal for others
-            let delay = word.length <= 2 ? 45 : 55 + Math.random() * 35;
-
-            // Extra pause after punctuation — feels like a person finishing a thought
-            const lastChar = word.slice(-1);
-            if (lastChar === "." || lastChar === "!" || lastChar === "?") delay += 180;
-            else if (lastChar === "," || lastChar === ";") delay += 80;
-
-            setTimeout(() => {
-                idx++;
-                setDisplayedCount(idx);
-                scheduleNext();
-            }, delay);
-        }
-
-        scheduleNext();
-    }, [text]);
-
-    const displayed = words.slice(0, displayedCount).join(" ");
-    return <span>{displayed}</span>;
 }

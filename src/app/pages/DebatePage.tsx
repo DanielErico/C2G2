@@ -21,6 +21,7 @@ interface ChatMessageData {
     confidenceScore: number;
     round: number;
     label?: string; // e.g. "Round 1: Opening Arguments"
+    isReaction?: boolean;
 }
 
 export function DebatePage() {
@@ -47,15 +48,54 @@ export function DebatePage() {
 
     // Refs for pause/resume
     const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-    const pendingQueueRef = useRef<{ msg: ChatMessageData; delayMs: number }[]>([]);
+    const pendingQueueRef = useRef<{ msg: ChatMessageData; delayMs: number; typingDuration: number }[]>([]);
     const conclusionRef = useRef<{ text: string | null; error: string | null } | null>(null);
 
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
+    const [hasNewMessages, setHasNewMessages] = useState(false);
 
-    // Auto-scroll chat to bottom
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        audioRef.current = new Audio("/notify.mp3");
+    }, []);
+
+    const playNotifySound = () => {
+        if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play().catch(e => console.log("Audio play blocked", e));
+        }
+    };
+
+    // Auto-scroll chat to bottom conditionally
+    useEffect(() => {
+        if (isAutoScrollEnabled) {
+            chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            setHasNewMessages(false);
+        } else {
+            // Only set new message if there's actually a new visible message to scroll to
+            setHasNewMessages(true);
+        }
     }, [visibleMessages, typingModel]);
+
+    // Handle user manual scroll
+    const handleScroll = () => {
+        if (!chatContainerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+        setIsAutoScrollEnabled(isNearBottom);
+        if (isNearBottom) setHasNewMessages(false);
+    };
+
+    // Format text into chunks simulating human WhatsApp messages
+    const chunkMessageText = (text: string): string[] => {
+        // Simple paragraph split for now to keep things fast
+        const chunks = text.split("\n\n").filter(c => c.trim().length > 0);
+        return chunks.length > 0 ? chunks : [text];
+    };
 
     const handleStartDebate = async () => {
         if (!topic.trim()) return;
@@ -69,56 +109,63 @@ export function DebatePage() {
             // Call Live Backend
             const res: DebateResponse = await runDebate(topic, depth, rounds);
 
-            // Helper: schedule the pending queue from the current position
-            const scheduleQueue = (queue: { msg: ChatMessageData; delayMs: number }[]) => {
-                let delay = 0;
-                queue.forEach(({ msg }, index) => {
-                    const preId = setTimeout(() => { setTypingModel(msg.modelId); }, Math.max(0, delay - 800));
-                    const msgId = setTimeout(() => {
-                        setVisibleMessages(prev => [...prev, msg]);
-                        pendingQueueRef.current = pendingQueueRef.current.filter(q => q.msg.id !== msg.id);
-                        if (index === queue.length - 1) {
-                            setTypingModel(null);
-
-                            // Ask for user opinion before concluding
-                            const modMessage: ChatMessageData = {
-                                id: `mod-${Date.now()}`,
-                                modelId: "chatgpt", // use the first model's styling or neutral if 'user'
-                                text: "The council has presented their initial arguments. Before we draw a final conclusion, what is your take on this? (Send a reply, or click Conclude Debate when ready).",
-                                confidenceScore: 100,
-                                round: 0,
-                                label: "Debate Moderator",
-                            };
-                            setVisibleMessages(prev => [...prev, modMessage]);
-                            setDebateStatus("awaiting_conclusion");
-                        }
-                    }, delay);
-                    timeoutIdsRef.current.push(preId, msgId);
-                    delay += 3500;
-                });
-            };
-
-            // Build the full message queue
+            // Build the full message queue with chunking and reactions
             let delay = 0;
-            const messagesQueue: { msg: ChatMessageData; delayMs: number }[] = [];
+            const messagesQueue: { msg: ChatMessageData; delayMs: number; typingDuration: number }[] = [];
+
             res.rounds.forEach((rObj) => {
-                rObj.messages.forEach((m, idx) => {
-                    const msg: ChatMessageData = {
-                        id: `${rObj.round}-${m.modelId}`,
-                        modelId: m.modelId as AIModelId,
-                        text: m.text,
-                        confidenceScore: m.confidenceScore,
-                        round: rObj.round,
-                        label: idx === 0 ? rObj.label : undefined,
-                    };
-                    messagesQueue.push({ msg, delayMs: delay });
-                    delay += 3500;
+                rObj.messages.forEach((m, idxMain) => {
+                    const chunks = chunkMessageText(m.text);
+
+                    chunks.forEach((chunkText, idxChunk) => {
+                        const isFirstChunk = idxChunk === 0;
+                        const msg: ChatMessageData = {
+                            id: `${rObj.round}-${m.modelId}-chunk-${idxChunk}`,
+                            modelId: m.modelId as AIModelId,
+                            text: chunkText,
+                            confidenceScore: isFirstChunk ? m.confidenceScore : 0, // Only show conf on first chunk
+                            round: rObj.round,
+                            label: (idxMain === 0 && isFirstChunk) ? rObj.label : undefined,
+                        };
+
+                        // Calculate typing time base on length
+                        let typingDuration = 2000 + Math.random() * 2000;
+                        if (chunkText.length > 200) typingDuration = 4000 + Math.random() * 2000;
+                        if (chunkText.length > 500) typingDuration = 6000 + Math.random() * 3000;
+
+                        // Add a small pause between models
+                        if (isFirstChunk && idxMain > 0) delay += 1500;
+
+                        messagesQueue.push({ msg, delayMs: delay, typingDuration });
+                        delay += typingDuration;
+                    });
+
+                    // Occasionally add a random reaction
+                    if (Math.random() > 0.65 && idxMain > 0) {
+                        const reactor = rObj.messages[idxMain - 1].modelId;
+                        const emojis = ["🤔", "👍", "🔥", "👀", "🎯"];
+                        const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+                        const reactorName = DEBATE_MODELS[reactor as Exclude<AIModelId, "user">].name;
+                        const currentName = DEBATE_MODELS[m.modelId as Exclude<AIModelId, "user">].name;
+
+                        const reactionMsg: ChatMessageData = {
+                            id: `${rObj.round}-reaction-${idxMain}`,
+                            modelId: m.modelId as AIModelId,
+                            text: `${currentName} reacted ${emoji} to ${reactorName}'s message`,
+                            confidenceScore: 0,
+                            round: rObj.round,
+                            isReaction: true
+                        };
+
+                        messagesQueue.push({ msg: reactionMsg, delayMs: delay + 500, typingDuration: 0 });
+                        delay += 1500; // brief pause after reaction
+                    }
                 });
             });
 
             pendingQueueRef.current = [...messagesQueue];
             timeoutIdsRef.current = [];
-            scheduleQueue(messagesQueue);
+            scheduleQueue(messagesQueue, true);
 
         } catch (err: any) {
             console.error(err);
@@ -127,6 +174,61 @@ export function DebatePage() {
             setTypingModel(null);
         }
     };
+
+    // Unified scheduling logic
+    const scheduleQueue = (queue: { msg: ChatMessageData; delayMs: number; typingDuration: number }[], requireConclusion = false) => {
+        let currentTotalDelay = 0; // Local counter to offset from now Date.now()
+
+        queue.forEach(({ msg, delayMs, typingDuration }, index) => {
+            // Determine absolute delays from the start of the schedule operation
+            // We use the pre-calculated `delayMs` as the start of the typing phase
+            // And `delayMs + typingDuration` as the moment the message appears
+
+            if (!msg.isReaction) {
+                const preId = setTimeout(() => {
+                    setTypingModel(msg.modelId);
+                }, delayMs);
+                timeoutIdsRef.current.push(preId);
+            }
+
+            const msgAppearsTime = delayMs + typingDuration;
+            const msgId = setTimeout(() => {
+                if (!msg.isReaction) {
+                    setTypingModel(null);
+                }
+                playNotifySound();
+                setVisibleMessages(prev => [...prev, msg]);
+                pendingQueueRef.current = pendingQueueRef.current.filter(q => q.msg.id !== msg.id);
+
+                if (index === queue.length - 1) {
+                    if (requireConclusion) {
+                        const modMessage: ChatMessageData = {
+                            id: `mod-${Date.now()}`,
+                            modelId: "chatgpt",
+                            text: "The council has presented their initial arguments. Before we draw a final conclusion, what is your take on this? (Send a reply, or click Conclude Debate when ready).",
+                            confidenceScore: 100,
+                            round: 0,
+                            label: "Debate Moderator",
+                            isReaction: true // Using reaction style for the moderator message
+                        };
+                        playNotifySound();
+                        setVisibleMessages(prev => [...prev, modMessage]);
+                        setDebateStatus("awaiting_conclusion");
+                    } else if (conclusionRef.current) {
+                        setConsensusData(conclusionRef.current);
+                        setDebateStatus("completed");
+                        setIsConsensusOpen(true);
+                        setIsUserReplying(false);
+                    } else {
+                        setIsUserReplying(false);
+                    }
+                }
+            }, msgAppearsTime);
+
+            timeoutIdsRef.current.push(msgId);
+        });
+    };
+
 
     const handlePause = () => {
         // Clear all pending timeouts
@@ -139,30 +241,25 @@ export function DebatePage() {
     const handleResume = () => {
         if (pendingQueueRef.current.length === 0) return;
         setDebateStatus("running");
-        // Re-schedule remaining messages
+
+        // Re-calculate delays starting from 0 for the remaining items
         const remaining = pendingQueueRef.current;
-        const conclusion = conclusionRef.current!;
-        let delay = 0;
-        remaining.forEach(({ msg }, index) => {
-            const preId = setTimeout(() => { setTypingModel(msg.modelId); }, Math.max(0, delay - 800));
-            const msgId = setTimeout(() => {
-                setVisibleMessages(prev => [...prev, msg]);
-                pendingQueueRef.current = pendingQueueRef.current.filter(q => q.msg.id !== msg.id);
-                if (index === remaining.length - 1) {
-                    setTypingModel(null);
-                    // Determine if we were waiting for conclusion or completed
-                    if (!conclusionRef.current) {
-                        setDebateStatus("awaiting_conclusion");
-                    } else {
-                        setConsensusData(conclusionRef.current);
-                        setDebateStatus("completed");
-                        setIsConsensusOpen(true);
-                    }
-                }
-            }, delay);
-            timeoutIdsRef.current.push(preId, msgId);
-            delay += 3500;
+        let cumulativeDelay = 0;
+        const adjustedQueue = remaining.map(item => {
+            const newItem = { ...item, delayMs: cumulativeDelay, typingDuration: item.typingDuration };
+            cumulativeDelay += item.typingDuration;
+            // add arbitrary pauses inside remaining queue recalculation
+            if (item.msg.isReaction) cumulativeDelay += 1000;
+            return newItem;
         });
+
+        // if conclusion exists we are in the finalizing stage
+        const isFinalizing = !(!conclusionRef.current);
+        const requiresConclusion = !isFinalizing;
+
+        pendingQueueRef.current = [...adjustedQueue];
+        timeoutIdsRef.current = [];
+        scheduleQueue(adjustedQueue, requiresConclusion && debateStatus === "running");
     };
 
     const handleConcludeDebate = async () => {
@@ -176,59 +273,58 @@ export function DebatePage() {
 
             conclusionRef.current = res.conclusion;
 
-            const convergenceMsgQueue: { msg: ChatMessageData; delayMs: number }[] = [];
+            const convergenceMsgQueue: { msg: ChatMessageData; delayMs: number; typingDuration: number }[] = [];
             let delay = 0;
-            res.convergenceRound.messages.forEach((m, idx) => {
-                const msg: ChatMessageData = {
-                    id: `conv-${m.modelId}-${Date.now()}`,
-                    modelId: m.modelId as AIModelId,
-                    text: m.text,
-                    confidenceScore: m.confidenceScore,
-                    round: res.convergenceRound.round,
-                    label: idx === 0 ? res.convergenceRound.label : undefined,
-                };
-                convergenceMsgQueue.push({ msg, delayMs: delay });
-                delay += 3500;
+
+            res.convergenceRound.messages.forEach((m, idxMain) => {
+                const chunks = chunkMessageText(m.text);
+
+                chunks.forEach((chunkText, idxChunk) => {
+                    const isFirstChunk = idxChunk === 0;
+                    const msg: ChatMessageData = {
+                        id: `conv-${m.modelId}-chunk-${idxChunk}-${Date.now()}`,
+                        modelId: m.modelId as AIModelId,
+                        text: chunkText,
+                        confidenceScore: isFirstChunk ? m.confidenceScore : 0,
+                        round: res.convergenceRound.round,
+                        label: (idxMain === 0 && isFirstChunk) ? res.convergenceRound.label : undefined,
+                    };
+
+                    let typingDuration = 2000 + Math.random() * 2000;
+                    if (chunkText.length > 200) typingDuration = 4000 + Math.random() * 2000;
+                    if (chunkText.length > 500) typingDuration = 6000 + Math.random() * 3000;
+
+                    if (isFirstChunk && idxMain > 0) delay += 1500;
+
+                    convergenceMsgQueue.push({ msg, delayMs: delay, typingDuration });
+                    delay += typingDuration;
+                });
             });
 
             pendingQueueRef.current = [...convergenceMsgQueue];
             timeoutIdsRef.current = [];
 
-            // Precompute final messages array to save to history, since state isn't synchronous inside setTimeout
             const finalMessages = [...visibleMessages, ...convergenceMsgQueue.map(q => q.msg)];
 
-            // Re-use scheduling logic but trigger completion at the end
-            convergenceMsgQueue.forEach((item, index) => {
-                const { msg, delayMs } = item;
-                const preId = setTimeout(() => { setTypingModel(msg.modelId); }, Math.max(0, delayMs - 800));
-                const msgId = setTimeout(() => {
-                    setVisibleMessages(prev => [...prev, msg]);
-                    pendingQueueRef.current = pendingQueueRef.current.filter(q => q.msg.id !== msg.id);
-                    if (index === convergenceMsgQueue.length - 1) {
-                        setTypingModel(null);
-                        setConsensusData(conclusionRef.current);
-                        setDebateStatus("completed");
-                        setIsConsensusOpen(true);
-                        setIsUserReplying(false);
+            // Schedule the convergence rounds using standard queue, no conclusion needed beyond what's handled internally
+            scheduleQueue(convergenceMsgQueue, false);
 
-                        // Save to history
-                        const synthesis = conclusionRef.current?.text || "";
-                        const snippet = synthesis.length > 150 ? synthesis.substring(0, 150) + "..." : synthesis;
-                        saveSession({
-                            id: `debate_${Date.now()}`,
-                            timestamp: Date.now(),
-                            type: "debate",
-                            topic: topic,
-                            snippet: snippet || "Final verdict generated without synthesis text.",
-                            fullData: {
-                                messages: finalMessages,
-                                consensus: conclusionRef.current
-                            }
-                        });
+            // Queue the history save after final render
+            setTimeout(() => {
+                const synthesis = conclusionRef.current?.text || "";
+                const snippet = synthesis.length > 150 ? synthesis.substring(0, 150) + "..." : synthesis;
+                saveSession({
+                    id: `debate_${Date.now()}`,
+                    timestamp: Date.now(),
+                    type: "debate",
+                    topic: topic,
+                    snippet: snippet || "Final verdict generated without synthesis text.",
+                    fullData: {
+                        messages: finalMessages,
+                        consensus: conclusionRef.current
                     }
-                }, delayMs);
-                timeoutIdsRef.current.push(preId, msgId);
-            });
+                });
+            }, delay + 1000);
 
         } catch (err: any) {
             console.error(err);
@@ -256,6 +352,7 @@ export function DebatePage() {
             round: 0,
             label: currentReplyTarget ? `Replying to ${currentReplyTarget.modelName}` : undefined,
         };
+        playNotifySound();
         setVisibleMessages(prev => [...prev, userMsg]);
 
         try {
@@ -271,25 +368,36 @@ export function DebatePage() {
             );
 
             let delay = 0;
-            res.round.messages.forEach((m, idx) => {
-                setTimeout(() => { setTypingModel(m.modelId as AIModelId); }, Math.max(0, delay - 600));
-                setTimeout(() => {
-                    const aiMsg: ChatMessageData = {
-                        id: `user-reply-${m.modelId}-${Date.now()}`,
+            const replyMsgQueue: { msg: ChatMessageData; delayMs: number; typingDuration: number }[] = [];
+            res.round.messages.forEach((m, idxMain) => {
+                const chunks = chunkMessageText(m.text);
+
+                chunks.forEach((chunkText, idxChunk) => {
+                    const isFirstChunk = idxChunk === 0;
+                    const msg: ChatMessageData = {
+                        id: `user-reply-${m.modelId}-${idxChunk}-${Date.now()}`,
                         modelId: m.modelId as AIModelId,
-                        text: m.text,
-                        confidenceScore: m.confidenceScore,
+                        text: chunkText,
+                        confidenceScore: isFirstChunk ? m.confidenceScore : 0,
                         round: 0,
-                        label: idx === 0 ? res.round.label : undefined,
+                        label: (idxMain === 0 && isFirstChunk) ? res.round.label : undefined,
                     };
-                    setVisibleMessages(prev => [...prev, aiMsg]);
-                    if (idx === res.round.messages.length - 1) {
-                        setTypingModel(null);
-                        setIsUserReplying(false);
-                    }
-                }, delay);
-                delay += 2500;
+
+                    let typingDuration = 2000 + Math.random() * 2000;
+                    if (chunkText.length > 200) typingDuration = 4000 + Math.random() * 2000;
+                    if (chunkText.length > 500) typingDuration = 6000 + Math.random() * 3000;
+
+                    if (isFirstChunk && idxMain > 0) delay += 1000;
+
+                    replyMsgQueue.push({ msg, delayMs: delay, typingDuration });
+                    delay += typingDuration;
+                });
             });
+
+            pendingQueueRef.current = [...replyMsgQueue];
+            timeoutIdsRef.current = [];
+            scheduleQueue(replyMsgQueue, false);
+
         } catch (err: any) {
             console.error("User reply error:", err);
             setIsUserReplying(false);
@@ -466,6 +574,8 @@ export function DebatePage() {
 
                     {/* ── Scrollable Chat Body ── */}
                     <div
+                        ref={chatContainerRef}
+                        onScroll={handleScroll}
                         style={{
                             flex: 1,
                             minHeight: 0,
@@ -475,6 +585,7 @@ export function DebatePage() {
                             flexDirection: "column",
                             gap: "20px",
                             transition: "all 0.3s ease",
+                            position: "relative",
                         }}
                     >
                         {/* ── INPUT SECTION ── */}
@@ -789,6 +900,51 @@ export function DebatePage() {
                                 <div ref={chatEndRef} />
                             </div>
                         )}
+
+                        {/* New Message Floating Button */}
+                        <AnimatePresence>
+                            {hasNewMessages && !isAutoScrollEnabled && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 50 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 50 }}
+                                    style={{
+                                        position: "fixed",
+                                        bottom: "100px",
+                                        right: "10%",
+                                        zIndex: 50,
+                                        display: "flex",
+                                        justifyContent: "center",
+                                    }}
+                                >
+                                    <button
+                                        onClick={() => {
+                                            setIsAutoScrollEnabled(true);
+                                            setHasNewMessages(false);
+                                            chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                                        }}
+                                        style={{
+                                            background: "var(--card)",
+                                            border: "1px solid var(--border)",
+                                            borderRadius: "20px",
+                                            padding: "8px 16px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "8px",
+                                            fontSize: "13px",
+                                            fontWeight: 600,
+                                            color: "var(--foreground)",
+                                            boxShadow: "0 4px 15px rgba(0,0,0,0.15)",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f97316" }} />
+                                        New Message
+                                        <ChevronDown size={14} style={{ color: "var(--muted-foreground)" }} />
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
 
                         {debateStatus === "awaiting_conclusion" && (

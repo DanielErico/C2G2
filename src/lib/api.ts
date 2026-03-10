@@ -18,12 +18,13 @@ const API_BASE = (typeof window !== "undefined" && window.location.hostname === 
 export async function analyzeWithAllModels(
     query: string,
     role: string,
-    depth: number
+    depth: number,
+    documentContext?: string
 ): Promise<AnalysisResponse> {
     const response = await fetch(`${API_BASE}/api/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, role, depth }),
+        body: JSON.stringify({ query, role, depth, documentContext }),
     });
 
     if (!response.ok) {
@@ -67,12 +68,13 @@ export interface ConcludeDebateResponse {
 export async function runDebate(
     topic: string,
     depth: string,
-    rounds: number
+    rounds: number,
+    documentContext?: string
 ): Promise<DebateResponse> {
     const response = await fetch(`${API_BASE}/api/debate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, depth, rounds }),
+        body: JSON.stringify({ topic, depth, rounds, documentContext }),
     });
 
     if (!response.ok) {
@@ -131,6 +133,23 @@ export async function sendUserReply(
     }
 
     return response.json() as Promise<UserReplyResponse>;
+}
+
+export async function extractTextFromFile(file: File): Promise<{ text: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE}/api/extract-text`, {
+        method: "POST",
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: "Failed to extract text" }));
+        throw new Error(err.error || `Server error ${response.status}`);
+    }
+
+    return response.json() as Promise<{ text: string }>;
 }
 
 export async function checkServerHealth(): Promise<{
