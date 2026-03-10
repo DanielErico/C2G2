@@ -314,12 +314,13 @@ app.post("/api/debate", async (req, res) => {
         // We run the rounds sequentially because models need the context of previous rounds
         for (let r = 1; r <= totalRounds; r++) {
 
-            // With Gemini 1.5 Flash (1M tokens), we do NOT need to truncate the history or sleep.
-            // Call each model sequentially for the current round
-            const chatgpt = await callDebatePersona(enrichedTopic, "chatgpt", allMessagesFlat);
-            const gemini = await callDebatePersona(enrichedTopic, "gemini", allMessagesFlat);
-            const claude = await callDebatePersona(enrichedTopic, "claude", allMessagesFlat);
-            const grok = await callDebatePersona(enrichedTopic, "grok", allMessagesFlat);
+            // Call all models concurrently for the current round (since they only need context from the previous round)
+            const [chatgpt, gemini, claude, grok] = await Promise.all([
+                callDebatePersona(enrichedTopic, "chatgpt", allMessagesFlat),
+                callDebatePersona(enrichedTopic, "gemini", allMessagesFlat),
+                callDebatePersona(enrichedTopic, "claude", allMessagesFlat),
+                callDebatePersona(enrichedTopic, "grok", allMessagesFlat)
+            ]);
 
             const roundMessages = [
                 { modelId: "chatgpt", text: chatgpt.text, confidenceScore: chatgpt.confidenceScore, round: r },
@@ -368,11 +369,13 @@ app.post("/api/debate/conclude", async (req, res) => {
 
         const conclusionText = await callSynthesis(topic, "Debate Moderator", modelResponsesMap);
 
-        // Convergence Round: Models agree sequentially
-        const convChatgpt = await callConvergencePersona(topic, "chatgpt", conclusionText);
-        const convGemini = await callConvergencePersona(topic, "gemini", conclusionText);
-        const convClaude = await callConvergencePersona(topic, "claude", conclusionText);
-        const convGrok = await callConvergencePersona(topic, "grok", conclusionText);
+        // Convergence Round: Models agree concurrently to save time
+        const [convChatgpt, convGemini, convClaude, convGrok] = await Promise.all([
+            callConvergencePersona(topic, "chatgpt", conclusionText),
+            callConvergencePersona(topic, "gemini", conclusionText),
+            callConvergencePersona(topic, "claude", conclusionText),
+            callConvergencePersona(topic, "grok", conclusionText)
+        ]);
 
         // Find highest round number currently in history to append correctly
         const lastRound = history.reduce((max, msg) => Math.max(max, msg.round || 0), 0);
