@@ -6,15 +6,6 @@ import OpenAI from "openai"; // Used for standard OpenAI fallback if needed
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import multer from "multer";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-let pdf;
-try {
-    pdf = require("pdf-parse");
-} catch (e) {
-    console.warn("pdf-parse could not be loaded. PDF extraction will fail.", e);
-}
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, "../.env") });
 
@@ -266,39 +257,6 @@ async function callConvergencePersona(topic, persona, synthesisText) {
         return { text: `[Endorses consensus]`, confidenceScore: 100 };
     }
 }
-
-/* ─── DOCUMENT EXTRACTION ENDPOINT ─── */
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
-
-app.post("/api/extract-text", upload.single("file"), async (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ error: "No file uploaded" });
-        }
-
-        let text = "";
-        const mimeType = req.file.mimetype;
-
-        if (mimeType === "application/pdf") {
-            if (!pdf) {
-                return res.status(500).json({ error: "PDF parsing library failed to load on this server environment." });
-            }
-            const parser = new pdf.PDFParse({ data: req.file.buffer });
-            const result = await parser.getText();
-            await parser.destroy();
-            text = result.text;
-        } else if (mimeType === "text/plain" || mimeType === "text/csv" || mimeType === "application/json") {
-            text = req.file.buffer.toString("utf8");
-        } else {
-            return res.status(400).json({ error: "Unsupported file type. Please upload a PDF or text file." });
-        }
-
-        return res.json({ text });
-    } catch (err) {
-        console.error("[C2G2] Extract text error:", err);
-        return res.status(500).json({ error: "Failed to extract text from document." });
-    }
-});
 
 app.post("/api/debate", async (req, res) => {
     const { topic, depth = "Standard", rounds = 2, documentContext } = req.body;

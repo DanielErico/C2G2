@@ -11,6 +11,12 @@ export interface AnalysisResponse {
     conclusion: ModelResult;
 }
 
+import * as pdfjsLib from "pdfjs-dist";
+// Ensure PDF.js worker is loaded correctly in Vite
+// @ts-ignore
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
 const API_BASE = (typeof window !== "undefined" && window.location.hostname === "localhost")
     ? "http://localhost:3001"
     : "";
@@ -136,20 +142,31 @@ export async function sendUserReply(
 }
 
 export async function extractTextFromFile(file: File): Promise<{ text: string }> {
-    const formData = new FormData();
-    formData.append("file", file);
+    if (file.type === "application/pdf") {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+            const pdfDocument = await loadingTask.promise;
+            let fullText = "";
 
-    const response = await fetch(`${API_BASE}/api/extract-text`, {
-        method: "POST",
-        body: formData,
-    });
+            for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+                const page = await pdfDocument.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map((item: any) => item.str).join(" ");
+                fullText += pageText + "\n";
+            }
 
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: "Failed to extract text" }));
-        throw new Error(err.error || `Server error ${response.status}`);
+            return { text: fullText };
+        } catch (error) {
+            console.error("PDF extraction failed:", error);
+            throw new Error("Failed to extract text from PDF in the browser.");
+        }
+    } else if (file.type.startsWith("text/") || file.type === "application/json" || file.type === "text/csv") {
+        const text = await file.text();
+        return { text };
+    } else {
+        throw new Error("Unsupported file type. Please upload a PDF or text file.");
     }
-
-    return response.json() as Promise<{ text: string }>;
 }
 
 export async function checkServerHealth(): Promise<{
