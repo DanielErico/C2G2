@@ -16,7 +16,7 @@ import {
 const AI_MODELS = [
   {
     id: "chatgpt",
-    name: "ChatGPT",
+    name: "Cortex",
     role: "Strategic Structurer",
     description:
       "Organizes complex ideas into clear, actionable frameworks with logical precision.",
@@ -30,7 +30,7 @@ const AI_MODELS = [
   },
   {
     id: "gemini",
-    name: "Gemini",
+    name: "Catalyst",
     role: "Data & Context Analyst",
     description:
       "Synthesizes vast data sources and contextual signals to surface hidden insights.",
@@ -44,7 +44,7 @@ const AI_MODELS = [
   },
   {
     id: "claude",
-    name: "Claude",
+    name: "Genesis",
     role: "Risk & Ethics Analyst",
     description:
       "Evaluates moral dimensions, identifies blind spots, and stress-tests assumptions.",
@@ -58,7 +58,7 @@ const AI_MODELS = [
   },
   {
     id: "grok",
-    name: "Grok",
+    name: "Gauntlet",
     role: "Contrarian Thinker",
     description:
       "Challenges consensus, probes weak points, and introduces unconventional angles.",
