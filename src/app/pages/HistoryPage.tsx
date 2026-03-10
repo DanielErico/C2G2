@@ -260,11 +260,11 @@ export function HistoryPage() {
                                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
                                 style={{
                                     position: "fixed",
-                                    top: "40px",
-                                    bottom: "40px",
-                                    left: "50%",
-                                    transform: "translateX(-50%)",
-                                    width: "100%",
+                                    top: "5%",
+                                    bottom: "5%",
+                                    left: "5%",
+                                    right: "5%",
+                                    width: "90%",
                                     maxWidth: "900px",
                                     background: "var(--background)",
                                     border: "1px solid var(--border)",
@@ -325,7 +325,7 @@ export function HistoryPage() {
                                 </div>
 
                                 {/* Modal Body */}
-                                <div style={{ flex: 1, overflowY: "auto", padding: "32px", background: "var(--background)", display: "flex", flexDirection: "column", gap: "24px" }}>
+                                <div className="p-4 md:p-8" style={{ flex: 1, overflowY: "auto", background: "var(--background)", display: "flex", flexDirection: "column", gap: "24px" }}>
                                     {!selectedSession.fullData ? (
                                         <div style={{ color: "var(--muted-foreground)", textAlign: "center", padding: "40px 0" }}>
                                             Legacy session: detail data not stored. <br /><br />
@@ -367,10 +367,10 @@ export function HistoryPage() {
                                                 const modelInfo = !isUser ? DEBATE_MODELS[msg.modelId as keyof typeof DEBATE_MODELS] : null;
                                                 return (
                                                     <div key={msg.id || i} style={{
-                                                        background: "var(--card)", padding: "20px", borderRadius: "16px",
+                                                        background: "var(--card)", padding: "16px", borderRadius: "16px",
                                                         border: isUser ? "1px solid var(--border)" : `1px solid ${modelInfo?.borderColor || "var(--border)"}`,
                                                         alignSelf: isUser ? "flex-end" : "flex-start",
-                                                        maxWidth: "85%",
+                                                        maxWidth: "90%",
                                                         marginLeft: isUser ? "auto" : 0
                                                     }}>
                                                         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", color: isUser ? "var(--foreground)" : modelInfo?.accentColor }}>
