@@ -3,16 +3,40 @@ import { motion, AnimatePresence } from "motion/react";
 import { Sidebar } from "../components/Sidebar";
 import { ModeToggle } from "../components/ModeToggle";
 import { getHistory, deleteSession, SavedSession } from "../../lib/history";
-import { Clock, MessageSquare, FlaskConical, Trash2, Calendar, FileText, X } from "lucide-react";
+import { Clock, MessageSquare, FlaskConical, Trash2, Calendar, FileText, X, Share2 } from "lucide-react";
 import { DEBATE_MODELS } from "../components/debate/DebateCard";
+import { shareDebate } from "../../lib/api";
+import { toast } from "sonner";
 
 export function HistoryPage() {
     const [history, setHistory] = useState<SavedSession[]>([]);
     const [selectedSession, setSelectedSession] = useState<SavedSession | null>(null);
+    const [isSharing, setIsSharing] = useState(false);
 
     useEffect(() => {
         setHistory(getHistory());
     }, []);
+
+    const handleShareSession = async (session: SavedSession) => {
+        if (session.type !== "debate" || !session.fullData || !session.fullData.consensus) {
+            toast.error("Complete data not available for sharing.");
+            return;
+        }
+        setIsSharing(true);
+        try {
+            const messages = session.fullData.messages || [];
+            const conclusion = session.fullData.consensus;
+            const res = await shareDebate(session.topic, messages, conclusion);
+            const url = `${window.location.origin}/debate/shared/${res.id}`;
+            await navigator.clipboard.writeText(url);
+            toast.success("Link copied to clipboard!");
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to generate share link.");
+        } finally {
+            setIsSharing(false);
+        }
+    };
 
     const handleDelete = (id: string) => {
         deleteSession(id);
@@ -308,20 +332,45 @@ export function HistoryPage() {
                                             {new Date(selectedSession.timestamp).toLocaleString()}
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => setSelectedSession(null)}
-                                        style={{
-                                            background: "var(--secondary)",
-                                            border: "none",
-                                            color: "var(--foreground)",
-                                            width: "40px", height: "40px",
-                                            borderRadius: "50%",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            cursor: "pointer"
-                                        }}
-                                    >
-                                        <X size={20} />
-                                    </button>
+                                    <div style={{ display: "flex", gap: "8px" }}>
+                                        {selectedSession.type === "debate" && selectedSession.fullData && selectedSession.fullData.consensus && (
+                                            <button
+                                                onClick={() => handleShareSession(selectedSession)}
+                                                disabled={isSharing}
+                                                style={{
+                                                    background: "var(--secondary)",
+                                                    border: "none",
+                                                    color: "var(--foreground)",
+                                                    height: "40px",
+                                                    borderRadius: "20px",
+                                                    padding: "0 16px",
+                                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                                    gap: "6px",
+                                                    cursor: isSharing ? "not-allowed" : "pointer",
+                                                    opacity: isSharing ? 0.7 : 1,
+                                                    fontWeight: 600,
+                                                    fontSize: "13px"
+                                                }}
+                                            >
+                                                <Share2 size={16} />
+                                                {isSharing ? "Sharing..." : "Share"}
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setSelectedSession(null)}
+                                            style={{
+                                                background: "var(--secondary)",
+                                                border: "none",
+                                                color: "var(--foreground)",
+                                                width: "40px", height: "40px",
+                                                borderRadius: "50%",
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                cursor: "pointer"
+                                            }}
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Modal Body */}

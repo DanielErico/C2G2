@@ -6,11 +6,12 @@ import { DebateCard, AIModelId, DEBATE_MODELS } from "../components/debate/Debat
 import { ConsensusPanel } from "../components/debate/ConsensusPanel";
 import { DebateControls } from "../components/debate/DebateControls";
 import { DebateStatus, DebateMessage } from "../components/debate/debateData";
-import { runDebate, DebateResponse, sendUserReply, concludeDebate } from "../../lib/api";
+import { runDebate, DebateResponse, sendUserReply, concludeDebate, shareDebate } from "../../lib/api";
 import { saveSession } from "../../lib/history";
 import {
-    Search, Bell, Swords, Cpu, ChevronDown, SlidersHorizontal, Settings2, Play, AlertCircle, GitMerge, MessageSquarePlus, Send, UserRound, CornerUpLeft, CheckCircle, Zap, X
+    Search, Bell, Swords, Cpu, ChevronDown, SlidersHorizontal, Settings2, Play, AlertCircle, GitMerge, MessageSquarePlus, Send, UserRound, CornerUpLeft, CheckCircle, Zap, X, Share2
 } from "lucide-react";
+import { toast } from "sonner";
 
 type DepthLevel = "Short" | "Standard" | "Deep";
 
@@ -40,6 +41,23 @@ export function DebatePage() {
     const [searchVal, setSearchVal] = useState("");
     const [depthOpen, setDepthOpen] = useState(false);
     const [isConsensusOpen, setIsConsensusOpen] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
+
+    const handleShareDebate = async () => {
+        if (!conclusionRef.current) return;
+        setIsSharing(true);
+        try {
+            const res = await shareDebate(topic, visibleMessages, conclusionRef.current);
+            const url = `${window.location.origin}/debate/shared/${res.id}`;
+            await navigator.clipboard.writeText(url);
+            toast.success("Link copied to clipboard!");
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to generate share link.");
+        } finally {
+            setIsSharing(false);
+        }
+    };
 
     // User participation state
     const [userInput, setUserInput] = useState("");
@@ -524,26 +542,50 @@ export function DebatePage() {
 
                         {/* Toggle Consensus Panel Button */}
                         {debateStatus === "completed" && (
-                            <button
-                                onClick={() => setIsConsensusOpen(!isConsensusOpen)}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "6px",
-                                    padding: "6px 14px",
-                                    background: isConsensusOpen ? "rgba(16,185,129,0.15)" : "var(--secondary)",
-                                    border: isConsensusOpen ? "1px solid rgba(16,185,129,0.3)" : "1px solid var(--border)",
-                                    borderRadius: "8px",
-                                    color: isConsensusOpen ? "#10b981" : "var(--foreground)",
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                    transition: "all 0.2s",
-                                }}
-                            >
-                                <GitMerge size={14} />
-                                {isConsensusOpen ? "Hide Consensus" : "View Conclusion"}
-                            </button>
+                            <div style={{ display: "flex", gap: "8px" }}>
+                                <button
+                                    onClick={handleShareDebate}
+                                    disabled={isSharing}
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        padding: "6px 14px",
+                                        background: "var(--secondary)",
+                                        border: "1px solid var(--border)",
+                                        borderRadius: "8px",
+                                        color: "var(--foreground)",
+                                        fontSize: "12px",
+                                        fontWeight: 600,
+                                        cursor: isSharing ? "not-allowed" : "pointer",
+                                        transition: "all 0.2s",
+                                        opacity: isSharing ? 0.7 : 1,
+                                    }}
+                                >
+                                    <Share2 size={14} />
+                                    {isSharing ? "Sharing..." : "Share Link"}
+                                </button>
+                                <button
+                                    onClick={() => setIsConsensusOpen(!isConsensusOpen)}
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        padding: "6px 14px",
+                                        background: isConsensusOpen ? "rgba(16,185,129,0.15)" : "var(--secondary)",
+                                        border: isConsensusOpen ? "1px solid rgba(16,185,129,0.3)" : "1px solid var(--border)",
+                                        borderRadius: "8px",
+                                        color: isConsensusOpen ? "#10b981" : "var(--foreground)",
+                                        fontSize: "12px",
+                                        fontWeight: 600,
+                                        cursor: "pointer",
+                                        transition: "all 0.2s",
+                                    }}
+                                >
+                                    <GitMerge size={14} />
+                                    {isConsensusOpen ? "Hide Consensus" : "View Conclusion"}
+                                </button>
+                            </div>
                         )}
 
                         <ModeToggle />

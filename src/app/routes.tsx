@@ -3,6 +3,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { ReasoningPage } from "./pages/ReasoningPage";
 import { DebatePage } from "./pages/DebatePage";
 import { HistoryPage } from "./pages/HistoryPage";
+import { SharedDebatePage } from "./pages/SharedDebatePage";
 
 export const router = createBrowserRouter([
   {
@@ -16,6 +17,10 @@ export const router = createBrowserRouter([
   {
     path: "/debate",
     Component: DebatePage,
+  },
+  {
+    path: "/debate/shared/:id",
+    Component: SharedDebatePage,
   },
   {
     path: "/history",

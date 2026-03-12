@@ -176,3 +176,41 @@ export async function checkServerHealth(): Promise<{
     const response = await fetch(`${API_BASE}/api/health`);
     return response.json();
 }
+
+export interface SharedDebateData {
+    id: string;
+    timestamp: number;
+    topic: string;
+    messages: { modelId: string; text: string; confidenceScore: number; round: number; label?: string; isReaction?: boolean; id: string }[];
+    conclusion: { text: string | null; error: string | null };
+}
+
+export async function shareDebate(
+    topic: string,
+    messages: any[],
+    conclusion: { text: string | null; error: string | null }
+): Promise<{ id: string }> {
+    const response = await fetch(`${API_BASE}/api/debate/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, messages, conclusion }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || `Server error ${response.status}`);
+    }
+
+    return response.json();
+}
+
+export async function getSharedDebate(id: string): Promise<SharedDebateData> {
+    const response = await fetch(`${API_BASE}/api/debate/share/${id}`);
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || `Server error ${response.status}`);
+    }
+
+    return response.json();
+}

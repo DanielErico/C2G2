@@ -504,6 +504,112 @@ app.post("/api/analyze", async (req, res) => {
     });
 });
 
+/* ─── SHAREABLE DEBATES ─── */
+import fs from "fs/promises";
+import crypto from "crypto";
+
+const SHARED_DEBATES_FILE = resolve(__dirname, "shared_debates.json");
+
+// Ensure the file exists
+async function initSharedDebatesFile() {
+    try {
+        await fs.access(SHARED_DEBATES_FILE);
+    } catch {
+        await fs.writeFile(SHARED_DEBATES_FILE, JSON.stringify({}));
+    }
+}
+initSharedDebatesFile();
+
+app.post("/api/debate/share", async (req, res) => {
+    const { topic, messages, conclusion } = req.body;
+    
+    if (!topic || !messages || messages.length === 0) {
+        return res.status(400).json({ error: "topic and messages are required to share a debate." });
+    }
+
+    try {
+        const id = crypto.randomUUID();
+        const fileData = await fs.readFile(SHARED_DEBATES_FILE, "utf-8");
+        const sharedDebates = JSON.parse(fileData);
+        
+        sharedDebates[id] = {
+            id,
+            timestamp: Date.now(),
+            topic,
+            messages,
+            conclusion
+        };
+
+        await fs.writeFile(SHARED_DEBATES_FILE, JSON.stringify(sharedDebates, null, 2));
+
+        return res.json({ id });
+    } catch (err) {
+        console.error("Error saving shared debate:", err);
+        return res.status(500).json({ error: "Failed to generate shared debate link" });
+    }
+});
+
+app.get("/api/debate/share/:id", async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const fileData = await fs.readFile(SHARED_DEBATES_FILE, "utf-8");
+        const sharedDebates = JSON.parse(fileData);
+
+        const debate = sharedDebates[id];
+
+        if (!debate) {
+            return res.status(404).json({ error: "Shared debate not found" });
+        }
+
+        return res.json(debate);
+    } catch (err) {
+        console.error("Error retrieving shared debate:", err);
+        return res.status(500).json({ error: "Failed to fetch shared debate" });
+    }
+});
+
+/* ─── LINK PREVIEWS (OG TAGS) ─── */
+app.get("/debate/shared/:id", async (req, res, next) => {
+    // This route intercepts the Vercel rewrite for dynamic link previews.
+    // In local dev, Vite intercepts the route natively so this is skipped.
+    const { id } = req.params;
+
+    try {
+        const fileData = await fs.readFile(SHARED_DEBATES_FILE, "utf-8");
+        const sharedDebates = JSON.parse(fileData);
+        const debate = sharedDebates[id];
+
+        // Fetch the static index.html from the root layout
+        const host = req.headers.host || "c2-g2.vercel.app";
+        const protocol = req.headers["x-forwarded-proto"] || "https";
+        const indexResponse = await fetch(`${protocol}://${host}/`);
+        let html = await indexResponse.text();
+
+        if (debate) {
+            const title = `C2G2 Debate: ${debate.topic}`;
+            const desc = "View the full AI consensus and debate.";
+            const ogTags = `
+    <title>${title}</title>
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${desc}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="${protocol}://${host}/debate/shared/${id}" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="${title}" />
+    <meta name="twitter:description" content="${desc}" />
+            `;
+            html = html.replace("<title>C2G2</title>", ogTags);
+        }
+
+        res.send(html);
+    } catch (err) {
+        console.error("Error generating preview HTML:", err);
+        // Fallback to next middleware/routes if this fails securely
+        next();
+    }
+});
+
 /* ─── HEALTH CHECK ─── */
 app.get("/api/health", (_req, res) => {
     res.json({
