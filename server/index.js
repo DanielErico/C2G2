@@ -505,20 +505,42 @@ app.post("/api/analyze", async (req, res) => {
 });
 
 /* ─── SHAREABLE DEBATES ─── */
-import fs from "fs/promises";
 import crypto from "crypto";
 
-const SHARED_DEBATES_FILE = resolve(__dirname, "shared_debates.json");
+// Primary store: in-memory Map (works on Vercel serverless where fs is read-only)
+// Debates persist for the lifetime of a warm serverless instance.
+const sharedDebatesMap = new Map();
 
-// Ensure the file exists
-async function initSharedDebatesFile() {
+// Best-effort file persistence for local dev (where fs is writable)
+const SHARED_DEBATES_FILE = resolve(__dirname, "shared_debates.json");
+let fileStoreAvailable = false;
+
+async function tryLoadFromFile() {
     try {
-        await fs.access(SHARED_DEBATES_FILE);
+        const { default: fs } = await import("fs/promises");
+        const raw = await fs.readFile(SHARED_DEBATES_FILE, "utf-8");
+        const obj = JSON.parse(raw);
+        for (const [k, v] of Object.entries(obj)) {
+            sharedDebatesMap.set(k, v);
+        }
+        fileStoreAvailable = true;
     } catch {
-        await fs.writeFile(SHARED_DEBATES_FILE, JSON.stringify({}));
+        // File doesn't exist or not writable (Vercel) — silently skip
     }
 }
-initSharedDebatesFile();
+
+async function tryPersistToFile() {
+    if (!fileStoreAvailable) return;
+    try {
+        const { default: fs } = await import("fs/promises");
+        const obj = Object.fromEntries(sharedDebatesMap);
+        await fs.writeFile(SHARED_DEBATES_FILE, JSON.stringify(obj, null, 2));
+    } catch {
+        fileStoreAvailable = false;
+    }
+}
+
+tryLoadFromFile();
 
 app.post("/api/debate/share", async (req, res) => {
     const { topic, messages, conclusion } = req.body;
@@ -529,18 +551,17 @@ app.post("/api/debate/share", async (req, res) => {
 
     try {
         const id = crypto.randomUUID();
-        const fileData = await fs.readFile(SHARED_DEBATES_FILE, "utf-8");
-        const sharedDebates = JSON.parse(fileData);
         
-        sharedDebates[id] = {
+        sharedDebatesMap.set(id, {
             id,
             timestamp: Date.now(),
             topic,
             messages,
             conclusion
-        };
+        });
 
-        await fs.writeFile(SHARED_DEBATES_FILE, JSON.stringify(sharedDebates, null, 2));
+        // Best-effort: also write to file in local dev
+        tryPersistToFile();
 
         return res.json({ id });
     } catch (err) {
@@ -553,10 +574,7 @@ app.get("/api/debate/share/:id", async (req, res) => {
     const { id } = req.params;
 
     try {
-        const fileData = await fs.readFile(SHARED_DEBATES_FILE, "utf-8");
-        const sharedDebates = JSON.parse(fileData);
-
-        const debate = sharedDebates[id];
+        const debate = sharedDebatesMap.get(id);
 
         if (!debate) {
             return res.status(404).json({ error: "Shared debate not found" });
@@ -576,9 +594,7 @@ app.get("/debate/shared/:id", async (req, res, next) => {
     const { id } = req.params;
 
     try {
-        const fileData = await fs.readFile(SHARED_DEBATES_FILE, "utf-8");
-        const sharedDebates = JSON.parse(fileData);
-        const debate = sharedDebates[id];
+        const debate = sharedDebatesMap.get(id);
 
         // Fetch the static index.html from the root layout
         const host = req.headers.host || "c2-g2.vercel.app";
