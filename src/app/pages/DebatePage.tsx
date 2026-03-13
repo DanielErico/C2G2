@@ -41,13 +41,30 @@ export function DebatePage() {
     const [searchVal, setSearchVal] = useState("");
     const [depthOpen, setDepthOpen] = useState(false);
     const [isConsensusOpen, setIsConsensusOpen] = useState(false);
+
+
+    // User participation state
+    const [userInput, setUserInput] = useState("");
+    const [isUserReplying, setIsUserReplying] = useState(false);
+    const [replyTarget, setReplyTarget] = useState<{ modelId: AIModelId; modelName: string; excerpt: string; accentColor: string } | null>(null);
+
     const [isSharing, setIsSharing] = useState(false);
 
+    // Refs for pause/resume
+    const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+    const pendingQueueRef = useRef<{ msg: ChatMessageData; delayMs: number; typingDuration: number }[]>([]);
+    const conclusionRef = useRef<{ text: string | null; error: string | null } | null>(null);
+
     const handleShareDebate = async () => {
-        if (!conclusionRef.current) return;
+        // Use conclusionRef first, fall back to consensusData state
+        const conclusion = conclusionRef.current ?? consensusData;
+        if (!conclusion) {
+            toast.error("No debate conclusion available to share.");
+            return;
+        }
         setIsSharing(true);
         try {
-            const res = await shareDebate(topic, visibleMessages, conclusionRef.current);
+            const res = await shareDebate(topic, visibleMessages, conclusion);
             const url = `${window.location.origin}/debate/shared/${res.id}`;
             await navigator.clipboard.writeText(url);
             toast.success("Link copied to clipboard!");
@@ -58,16 +75,6 @@ export function DebatePage() {
             setIsSharing(false);
         }
     };
-
-    // User participation state
-    const [userInput, setUserInput] = useState("");
-    const [isUserReplying, setIsUserReplying] = useState(false);
-    const [replyTarget, setReplyTarget] = useState<{ modelId: AIModelId; modelName: string; excerpt: string; accentColor: string } | null>(null);
-
-    // Refs for pause/resume
-    const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-    const pendingQueueRef = useRef<{ msg: ChatMessageData; delayMs: number; typingDuration: number }[]>([]);
-    const conclusionRef = useRef<{ text: string | null; error: string | null } | null>(null);
 
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
