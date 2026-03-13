@@ -504,43 +504,14 @@ app.post("/api/analyze", async (req, res) => {
     });
 });
 
-/* ─── SHAREABLE DEBATES ─── */
+/* ─── SHAREABLE DEBATES (SUPABASE) ─── */
 import crypto from "crypto";
+import { createClient } from "@supabase/supabase-js";
 
-// Primary store: in-memory Map (works on Vercel serverless where fs is read-only)
-// Debates persist for the lifetime of a warm serverless instance.
-const sharedDebatesMap = new Map();
-
-// Best-effort file persistence for local dev (where fs is writable)
-const SHARED_DEBATES_FILE = resolve(__dirname, "shared_debates.json");
-let fileStoreAvailable = false;
-
-async function tryLoadFromFile() {
-    try {
-        const { default: fs } = await import("fs/promises");
-        const raw = await fs.readFile(SHARED_DEBATES_FILE, "utf-8");
-        const obj = JSON.parse(raw);
-        for (const [k, v] of Object.entries(obj)) {
-            sharedDebatesMap.set(k, v);
-        }
-        fileStoreAvailable = true;
-    } catch {
-        // File doesn't exist or not writable (Vercel) — silently skip
-    }
+let supabase = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 }
-
-async function tryPersistToFile() {
-    if (!fileStoreAvailable) return;
-    try {
-        const { default: fs } = await import("fs/promises");
-        const obj = Object.fromEntries(sharedDebatesMap);
-        await fs.writeFile(SHARED_DEBATES_FILE, JSON.stringify(obj, null, 2));
-    } catch {
-        fileStoreAvailable = false;
-    }
-}
-
-tryLoadFromFile();
 
 app.post("/api/debate/share", async (req, res) => {
     const { topic, messages, conclusion } = req.body;
@@ -549,23 +520,28 @@ app.post("/api/debate/share", async (req, res) => {
         return res.status(400).json({ error: "topic and messages are required to share a debate." });
     }
 
+    if (!supabase) {
+        return res.status(500).json({ error: "Supabase credentials are not configured on the server." });
+    }
+
     try {
         const id = crypto.randomUUID();
         
-        sharedDebatesMap.set(id, {
-            id,
-            timestamp: Date.now(),
-            topic,
-            messages,
-            conclusion
-        });
+        const { error } = await supabase
+            .from("shared_debates")
+            .insert({
+                id,
+                topic,
+                messages,
+                conclusion,
+                timestamp: Date.now()
+            });
 
-        // Best-effort: also write to file in local dev
-        tryPersistToFile();
+        if (error) throw error;
 
         return res.json({ id });
     } catch (err) {
-        console.error("Error saving shared debate:", err);
+        console.error("Error saving shared debate to Supabase:", err);
         return res.status(500).json({ error: "Failed to generate shared debate link" });
     }
 });
@@ -573,16 +549,24 @@ app.post("/api/debate/share", async (req, res) => {
 app.get("/api/debate/share/:id", async (req, res) => {
     const { id } = req.params;
 
-    try {
-        const debate = sharedDebatesMap.get(id);
+    if (!supabase) {
+        return res.status(500).json({ error: "Supabase credentials are not configured on the server." });
+    }
 
-        if (!debate) {
+    try {
+        const { data: debate, error } = await supabase
+            .from("shared_debates")
+            .select("*")
+            .eq("id", id)
+            .single();
+
+        if (error || !debate) {
             return res.status(404).json({ error: "Shared debate not found" });
         }
 
         return res.json(debate);
     } catch (err) {
-        console.error("Error retrieving shared debate:", err);
+        console.error("Error retrieving shared debate from Supabase:", err);
         return res.status(500).json({ error: "Failed to fetch shared debate" });
     }
 });
@@ -594,7 +578,15 @@ app.get("/debate/shared/:id", async (req, res, next) => {
     const { id } = req.params;
 
     try {
-        const debate = sharedDebatesMap.get(id);
+        let debate = null;
+        if (supabase) {
+            const { data } = await supabase
+                .from("shared_debates")
+                .select("topic")
+                .eq("id", id)
+                .single();
+            debate = data;
+        }
 
         // Fetch the static index.html from the root layout
         const host = req.headers.host || "c2-g2.vercel.app";
@@ -602,7 +594,7 @@ app.get("/debate/shared/:id", async (req, res, next) => {
         const indexResponse = await fetch(`${protocol}://${host}/`);
         let html = await indexResponse.text();
 
-        if (debate) {
+        if (debate && debate.topic) {
             const title = `C2G2 Debate: ${debate.topic}`;
             const desc = "View the full AI consensus and debate.";
             const ogTags = `
