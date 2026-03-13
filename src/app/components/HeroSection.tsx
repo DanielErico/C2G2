@@ -155,12 +155,13 @@ export function HeroSection() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "18px 40px",
+          padding: "18px 0",
           maxWidth: "1280px",
           width: "100%",
           margin: "0 auto",
           boxSizing: "border-box" as const,
         }}
+        className="px-6 md:px-10"
       >
         {/* Logo */}
         <motion.div
@@ -212,7 +213,8 @@ export function HeroSection() {
 
         {/* Links */}
         <motion.div
-          style={{ display: "flex", alignItems: "center", gap: "32px" }}
+          className="hidden lg:flex"
+          style={{ alignItems: "center", gap: "32px" }}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
@@ -486,54 +488,44 @@ export function HeroSection() {
             <ArrowRight size={16} />
           </button>
 
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "var(--secondary)",
-              color: "var(--foreground)",
-              border: "1px solid var(--border)",
-              borderRadius: "13px",
-              padding: "15px 30px",
-              fontSize: "15px",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              backdropFilter: "blur(10px)",
-              letterSpacing: "-0.2px",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background =
-                "var(--border)";
-              (e.currentTarget as HTMLElement).style.borderColor =
-                "rgba(255,255,255,0.18)";
-              (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background =
-                "var(--secondary)";
-              (e.currentTarget as HTMLElement).style.borderColor =
-                "var(--border)";
-              (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-            }}
-          >
-            <div
+          {!user && (
+            <button
+              onClick={() => navigate("/auth")}
               style={{
-                width: "24px",
-                height: "24px",
-                borderRadius: "50%",
-                background: "rgba(255,255,255,0.12)",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
+                gap: "8px",
+                background: "var(--secondary)",
+                color: "var(--foreground)",
+                border: "1px solid var(--border)",
+                borderRadius: "13px",
+                padding: "15px 30px",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                backdropFilter: "blur(10px)",
+                letterSpacing: "-0.2px",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background =
+                  "var(--border)";
+                (e.currentTarget as HTMLElement).style.borderColor =
+                  "rgba(255,255,255,0.18)";
+                (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background =
+                  "var(--secondary)";
+                (e.currentTarget as HTMLElement).style.borderColor =
+                  "var(--border)";
+                (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
               }}
             >
-              <Play size={10} color="white" style={{ marginLeft: "1px" }} />
-            </div>
-            Watch Demo
-          </button>
+              Sign Up
+            </button>
+          )}
         </motion.div>
 
         {/* Feature tags */}
