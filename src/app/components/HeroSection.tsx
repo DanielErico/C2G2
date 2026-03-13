@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import {
   Brain,
   Zap,
@@ -12,6 +12,7 @@ import {
   Cpu,
   Layers,
 } from "lucide-react";
+import { useAuth } from "../../lib/auth";
 
 const AI_MODELS = [
   {
@@ -76,6 +77,7 @@ const NAV_LINKS = ["Features", "Pricing", "Docs", "Blog"];
 
 export function HeroSection() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <section
@@ -245,27 +247,53 @@ export function HeroSection() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <button
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--muted-foreground)",
-              fontSize: "14px",
-              fontWeight: 500,
-              cursor: "pointer",
-              padding: "8px 14px",
-              fontFamily: "inherit",
-              transition: "color 0.2s",
-            }}
-            onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLElement).style.color = "var(--foreground)")
-            }
-            onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)")
-            }
-          >
-            Sign In
-          </button>
+          {user ? (
+            <button
+              onClick={() => navigate("/reasoning")}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--muted-foreground)",
+                fontSize: "14px",
+                fontWeight: 500,
+                cursor: "pointer",
+                padding: "8px 14px",
+                fontFamily: "inherit",
+                transition: "color 0.2s",
+              }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLElement).style.color = "var(--foreground)")
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)")
+              }
+            >
+              {user.email?.split('@')[0]}
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate("/auth")}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--muted-foreground)",
+                fontSize: "14px",
+                fontWeight: 500,
+                cursor: "pointer",
+                padding: "8px 14px",
+                fontFamily: "inherit",
+                transition: "color 0.2s",
+              }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLElement).style.color = "var(--foreground)")
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)")
+              }
+            >
+              Sign In
+            </button>
+          )}
           <button
             onClick={() => navigate("/reasoning")}
             style={{

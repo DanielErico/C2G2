@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from "react-router";
+import { useNavigate, useLocation, Link } from "react-router";
 import {
   LayoutDashboard,
   FlaskConical,
@@ -347,9 +347,10 @@ export function Sidebar() {
               </div>
             </div>
           ) : (
-            <div
-              onClick={() => navigate("/auth")}
+            <Link
+              to="/auth"
               style={{
+                width: "100%",
                 marginTop: "8px",
                 padding: "10px 12px",
                 background: "linear-gradient(135deg, rgba(29,78,216,0.1), rgba(29,78,216,0.05))",
@@ -361,13 +362,14 @@ export function Sidebar() {
                 gap: "8px",
                 cursor: "pointer",
                 transition: "all 0.2s",
-                color: "#60a5fa"
+                color: "#60a5fa",
+                textDecoration: "none"
               }}
               className="hover:bg-blue-900/20"
             >
               <LogIn size={14} />
               <span style={{ fontSize: "13px", fontWeight: 600 }}>Sign In / Sign Up</span>
-            </div>
+            </Link>
           )}
         </div>
       </aside>
