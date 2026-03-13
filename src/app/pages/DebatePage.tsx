@@ -335,10 +335,10 @@ export function DebatePage() {
             scheduleQueue(convergenceMsgQueue, false);
 
             // Queue the history save after final render
-            setTimeout(() => {
+            setTimeout(async () => {
                 const synthesis = conclusionRef.current?.text || "";
                 const snippet = synthesis.length > 150 ? synthesis.substring(0, 150) + "..." : synthesis;
-                saveSession({
+                await saveSession({
                     id: `debate_${Date.now()}`,
                     timestamp: Date.now(),
                     type: "debate",

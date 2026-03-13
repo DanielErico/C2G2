@@ -4,6 +4,7 @@ import { ReasoningPage } from "./pages/ReasoningPage";
 import { DebatePage } from "./pages/DebatePage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { SharedDebatePage } from "./pages/SharedDebatePage";
+import { AuthPage } from "./pages/AuthPage";
 
 export const router = createBrowserRouter([
   {
@@ -25,5 +26,9 @@ export const router = createBrowserRouter([
   {
     path: "/history",
     Component: HistoryPage,
+  },
+  {
+    path: "/auth",
+    Component: AuthPage,
   },
 ]);

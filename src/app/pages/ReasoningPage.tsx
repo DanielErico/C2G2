@@ -165,7 +165,7 @@ export function ReasoningPage() {
 
       // Save to history
       const snippet = result.conclusion?.text || "Analysis generated successfully.";
-      saveSession({
+      await saveSession({
         id: `reasoning_${Date.now()}`,
         timestamp: Date.now(),
         type: "reasoning",

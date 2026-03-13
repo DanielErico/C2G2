@@ -8,6 +8,8 @@ import {
   Settings,
   ChevronRight,
   Cpu,
+  LogOut,
+  LogIn,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -26,11 +28,24 @@ const MODEL_DOTS = [
 ];
 
 import { useState } from "react";
+import { useAuth } from "../../lib/auth";
+import { supabase } from "../../lib/supabase";
+import { toast } from "sonner";
 
 export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const { user } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast.success("Successfully signed out");
+    } catch {
+      toast.error("Failed to sign out");
+    }
+  };
 
   return (
     <>
@@ -266,68 +281,94 @@ export function Sidebar() {
             <span style={{ fontSize: "13px", fontWeight: 500 }}>Settings</span>
           </div>
 
-          {/* User card */}
-          <div
-            style={{
-              marginTop: "8px",
-              padding: "10px 12px",
-              background: "var(--secondary)",
-              borderRadius: "10px",
-              border: "1px solid var(--border)",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-            }}
-          >
+          {/* User card / Login Button */}
+          {user ? (
             <div
               style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #1e3a8a, #1d4ed8)",
+                marginTop: "8px",
+                padding: "10px 12px",
+                background: "var(--secondary)",
+                borderRadius: "10px",
+                border: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                position: "relative"
+              }}
+            >
+              <div
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #1e3a8a, #1d4ed8)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "white",
+                }}
+              >
+                {user.email?.charAt(0).toUpperCase() || "U"}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p
+                  style={{
+                    color: "var(--foreground)",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    margin: 0,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={user.email || ""}
+                >
+                  {user.email}
+                </p>
+                <div 
+                  onClick={handleSignOut}
+                  style={{ 
+                    color: "var(--muted-foreground)", 
+                    fontSize: "10px", 
+                    margin: 0,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    marginTop: "2px",
+                  }}
+                  className="hover:text-red-400 transition-colors"
+                >
+                  <LogOut size={10} />
+                  Sign Out
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={() => navigate("/auth")}
+              style={{
+                marginTop: "8px",
+                padding: "10px 12px",
+                background: "linear-gradient(135deg, rgba(29,78,216,0.1), rgba(29,78,216,0.05))",
+                borderRadius: "10px",
+                border: "1px solid rgba(29,78,216,0.2)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "white",
+                gap: "8px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                color: "#60a5fa"
               }}
+              className="hover:bg-blue-900/20"
             >
-              AC
+              <LogIn size={14} />
+              <span style={{ fontSize: "13px", fontWeight: 600 }}>Sign In / Sign Up</span>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p
-                style={{
-                  color: "var(--foreground)",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  margin: 0,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                Alex Chen
-              </p>
-              <p
-                style={{ color: "var(--muted-foreground)", fontSize: "10px", margin: 0 }}
-              >
-                Pro Plan
-              </p>
-            </div>
-            <div
-              style={{
-                padding: "2px 7px",
-                background: "rgba(29,78,216,0.2)",
-                borderRadius: "6px",
-                border: "1px solid rgba(29,78,216,0.35)",
-              }}
-            >
-              <span style={{ color: "#60a5fa", fontSize: "9px", fontWeight: 700 }}>
-                PRO
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       </aside>
     </>

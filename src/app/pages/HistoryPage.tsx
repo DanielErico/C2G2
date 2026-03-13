@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Sidebar } from "../components/Sidebar";
 import { ModeToggle } from "../components/ModeToggle";
-import { getHistory, deleteSession, SavedSession } from "../../lib/history";
+import { getHistory, deleteSession, SavedSession, hasLocalHistory, syncLocalToCloud } from "../../lib/history";
+import { useAuth } from "../../lib/auth";
 import { Clock, MessageSquare, FlaskConical, Trash2, Calendar, FileText, X, Share2 } from "lucide-react";
 import { DEBATE_MODELS } from "../components/debate/DebateCard";
 import { shareDebate } from "../../lib/api";
@@ -12,10 +13,31 @@ export function HistoryPage() {
     const [history, setHistory] = useState<SavedSession[]>([]);
     const [selectedSession, setSelectedSession] = useState<SavedSession | null>(null);
     const [isSharing, setIsSharing] = useState(false);
+    const { user } = useAuth();
+    const [showSyncPrompt, setShowSyncPrompt] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
-        setHistory(getHistory());
-    }, []);
+        getHistory().then(setHistory);
+        if (user && hasLocalHistory()) {
+            setShowSyncPrompt(true);
+        }
+    }, [user]);
+
+    const handleSync = async () => {
+        setIsSyncing(true);
+        try {
+            await syncLocalToCloud();
+            const updated = await getHistory();
+            setHistory(updated);
+            setShowSyncPrompt(false);
+            toast.success("Local history synced to your account");
+        } catch (err) {
+            toast.error("Failed to sync local history");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     const handleShareSession = async (session: SavedSession) => {
         if (session.type !== "debate" || !session.fullData || !session.fullData.consensus) {
@@ -38,9 +60,10 @@ export function HistoryPage() {
         }
     };
 
-    const handleDelete = (id: string) => {
-        deleteSession(id);
-        setHistory(getHistory());
+    const handleDelete = async (id: string) => {
+        await deleteSession(id);
+        const updated = await getHistory();
+        setHistory(updated);
     };
 
     const groupHistoryByDate = (sessions: SavedSession[]) => {
@@ -107,6 +130,41 @@ export function HistoryPage() {
                 {/* Content Area */}
                 <div className="px-4 py-8 md:px-10 md:py-8" style={{ flex: 1, overflowY: "auto" }}>
                     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+                        
+                        {showSyncPrompt && (
+                            <div style={{
+                                background: "rgba(59, 130, 246, 0.1)",
+                                border: "1px solid rgba(59, 130, 246, 0.3)",
+                                borderRadius: "16px",
+                                padding: "20px",
+                                marginBottom: "32px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: "20px"
+                            }}>
+                                <div>
+                                    <h3 style={{ fontSize: "15px", fontWeight: 600, color: "var(--foreground)", margin: "0 0 4px 0" }}>Local history found</h3>
+                                    <p style={{ margin: 0, fontSize: "13px", color: "var(--muted-foreground)" }}>You have debates saved on this device. Would you like to sync them to your account?</p>
+                                </div>
+                                <div style={{ display: "flex", gap: "10px" }}>
+                                    <button
+                                        onClick={() => setShowSyncPrompt(false)}
+                                        style={{ background: "transparent", border: "1px solid var(--border)", padding: "8px 16px", borderRadius: "8px", color: "var(--foreground)", fontSize: "13px", cursor: "pointer", fontWeight: 500 }}
+                                    >
+                                        Dismiss
+                                    </button>
+                                    <button
+                                        onClick={handleSync}
+                                        disabled={isSyncing}
+                                        style={{ background: "#3b82f6", border: "none", padding: "8px 16px", borderRadius: "8px", color: "white", fontSize: "13px", cursor: isSyncing ? "not-allowed" : "pointer", fontWeight: 600 }}
+                                    >
+                                        {isSyncing ? "Syncing..." : "Sync Now"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div style={{ marginBottom: "32px" }}>
                             <h2 style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.5px", margin: "0 0 8px 0" }}>Saved Sessions</h2>
                             <p style={{ margin: 0, color: "var(--muted-foreground)", fontSize: "14px" }}>Review past debates and analysis runs.</p>
