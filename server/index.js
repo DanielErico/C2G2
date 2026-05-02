@@ -1,9 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import OpenAI from "openai"; // Used for standard OpenAI fallback if needed
+import OpenAI from "openai"; // Also used for NVIDIA NIM (OpenAI-compatible API)
 // import Anthropic from "@anthropic-ai/sdk";   // Native Claude — not in use (no API key)
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -72,8 +71,9 @@ Your response style:
 - Do NOT start with any greeting.`,
 };
 
-/* ─── GEMINI API CONFIGURATION ─── */
-const GEMINI_MODEL = "gemini-2.0-flash";
+/* ─── NVIDIA NEMOTRON-3-SUPER API CONFIGURATION ─── */
+const NVIDIA_MODEL = "nvidia/llama-3.3-nemotron-super-49b-v1";
+const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 // Per-persona temperature — keeps responses distinct since they all use the same base model now
 const PERSONA_TEMP = {
@@ -84,33 +84,34 @@ const PERSONA_TEMP = {
     synthesis: 0.50, // Deterministic final verdict
 };
 
-let _genAI = null;
-function getGenAI() {
-    if (!process.env.GEMINI_API_KEY) {
-        throw new Error("GEMINI_API_KEY is missing from .env");
+let _nvidiaClient = null;
+function getNvidiaClient() {
+    if (!process.env.NVIDIA_API_KEY) {
+        throw new Error("NVIDIA_API_KEY is missing from .env");
     }
-    if (!_genAI) {
-        _genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    if (!_nvidiaClient) {
+        _nvidiaClient = new OpenAI({
+            apiKey: process.env.NVIDIA_API_KEY,
+            baseURL: NVIDIA_BASE_URL,
+        });
     }
-    return _genAI;
+    return _nvidiaClient;
 }
 
 async function callGeminiPersona(systemPrompt, query, persona, maxTokens = 600) {
-    const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({
-        model: GEMINI_MODEL,
-        systemInstruction: systemPrompt,
+    const client = getNvidiaClient();
+
+    const response = await client.chat.completions.create({
+        model: NVIDIA_MODEL,
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user",   content: query },
+        ],
+        temperature: PERSONA_TEMP[persona] ?? 0.7,
+        max_tokens: maxTokens,
     });
 
-    const response = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: query }] }],
-        generationConfig: {
-            temperature: PERSONA_TEMP[persona] ?? 0.7,
-            maxOutputTokens: maxTokens,
-        }
-    });
-
-    return response.response.text();
+    return response.choices[0].message.content;
 }
 
 /* ─── HELPERS ─── */
@@ -509,11 +510,8 @@ import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 
 let supabase = null;
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-
-if (supabaseUrl && supabaseAnonKey) {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 }
 
 app.post("/api/debate/share", async (req, res) => {
@@ -626,7 +624,7 @@ app.get("/api/health", (_req, res) => {
     res.json({
         status: "ok",
         models: {
-            gemini: !!process.env.GEMINI_API_KEY,
+            nemotron: !!process.env.NVIDIA_API_KEY,
         },
     });
 });
@@ -636,9 +634,9 @@ if (process.env.NODE_ENV !== "production") {
     app.listen(PORT, () => {
         const key = (v) => v ? "✅ key found" : `⚠️  missing in .env`;
         console.log(`\n🚀 C2G2 API server running on http://localhost:${PORT}`);
-        console.log(`   Mode: Gemini 1.5 Flash`);
+        console.log(`   Mode: NVIDIA Nemotron-3-Super (llama-3.3-nemotron-super-49b-v1)`);
         console.log(`   ┌─────────────────────────────────────────────────────────┐`);
-        console.log(`   │  GEMINI_API_KEY  : ${key(process.env.GEMINI_API_KEY)}`);
+        console.log(`   │  NVIDIA_API_KEY  : ${key(process.env.NVIDIA_API_KEY)}`);
         console.log(`   └─────────────────────────────────────────────────────────┘\n`);
     });
 }
